@@ -1,0 +1,37 @@
+{
+   "name": "ebanx-test-api",
+   "version": "0.1.0",
+   "private": true,
+   "type": "module",
+   "engines": {
+      "node": ">=26 <27"
+   },
+   "packageManager": "bun@1.4.3",
+   "scripts": {
+      "prepare": "node .husky/install.mjs",
+      "dev": "node --watch src/server.ts",
+      "build": "tsc -p tsconfig.build.json",
+      "start": "node dist/server.js",
+      "typecheck": "tsc --noEmit",
+      "test": "node --test test/integration/*.test.ts",
+      "lint": "eslint .",
+      "lint:fix": "eslint . --fix",
+      "format": "prettier . --write",
+      "format:check": "prettier . --check",
+      "check": "bun run typecheck && bun run lint && bun run format:check && bun run test && bun run build"
+   },
+   "dependencies": {
+      "fastify": "^5.0.0"
+   },
+   "devDependencies": {
+      "@eslint/js": "^9.0.0",
+      "@types/node": "^26.0.0",
+      "eslint": "^9.0.0",
+      "eslint-config-prettier": "^10.0.0",
+      "husky": "^9.1.7",
+      "lint-staged": "^17.6.0",
+      "prettier": "^3.0.0",
+      "typescript": "^5.9.0",
+      "typescript-eslint": "^8.0.0"
+   }
+}
