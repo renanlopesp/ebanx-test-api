@@ -14,8 +14,8 @@ function setup(t: { after: (fn: () => Promise<void>) => void }) {
             headers: { 'content-type': 'application/json' },
             payload: JSON.stringify(payload),
          }),
-      balance: (id: string) =>
-         app.inject({ method: 'GET', url: `/balance?account_id=${id}` }),
+      balance: (accountId: string) =>
+         app.inject({ method: 'GET', url: `/balance?account_id=${accountId}` }),
    }
 }
 
@@ -171,6 +171,33 @@ test('reads do not create accounts, IDs preserve leading zeros, and reset clears
    const reset = await app.inject({ method: 'POST', url: '/reset' })
    assert.equal(reset.statusCode, 200)
    assert.equal(reset.body, 'OK')
+})
+
+test('repeated GET requests preserve existing balances and subsequent operations', async (t) => {
+   const { event, balance } = setup(t)
+   const deposit = await event({
+      type: 'deposit',
+      destination: '100',
+      amount: 10,
+   })
+   assert.equal(deposit.statusCode, 201)
+
+   for (let read = 0; read < 3; read++) {
+      const response = await balance('100')
+      assert.equal(response.statusCode, 200)
+      assert.equal(response.body, '10')
+   }
+
+   const withdrawal = await event({
+      type: 'withdraw',
+      origin: '100',
+      amount: 4,
+   })
+   assert.equal(withdrawal.statusCode, 201)
+   assert.deepEqual(withdrawal.json(), { origin: { id: '100', balance: 6 } })
+   const afterWithdrawal = await balance('100')
+   assert.equal(afterWithdrawal.statusCode, 200)
+   assert.equal(afterWithdrawal.body, '6')
 })
 
 test('application instances have independent state', async (t) => {

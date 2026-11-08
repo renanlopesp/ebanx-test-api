@@ -14,21 +14,24 @@ export class AccountError extends Error {
    }
 }
 
-export class Accounts {
-   private readonly balances = new Map<string, number>()
+export class AccountService {
+   private readonly accountBalances = new Map<string, number>()
 
    reset() {
-      this.balances.clear()
+      this.accountBalances.clear()
    }
 
-   balance(id: string): number {
-      const balance = this.balances.get(id)
+   getBalance(accountId: string): number {
+      const balance = this.accountBalances.get(accountId)
       if (balance === undefined)
          throw new AccountError('Account not found', 404)
       return balance
    }
 
-   execute(event: AccountEvent): { origin?: Account; destination?: Account } {
+   processEvent(event: AccountEvent): {
+      origin?: Account
+      destination?: Account
+   } {
       if (!Number.isSafeInteger(event.amount) || event.amount <= 0) {
          throw new AccountError('Amount must be a positive safe integer', 400)
       }
@@ -39,7 +42,7 @@ export class Accounts {
 
       // Validate all balances before mutating either account. No async work here.
       const originBalance =
-         event.type === 'deposit' ? undefined : this.balance(event.origin)
+         event.type === 'deposit' ? undefined : this.getBalance(event.origin)
       if (originBalance !== undefined && originBalance < event.amount) {
          throw new AccountError('Insufficient balance', 409)
       }
@@ -47,7 +50,7 @@ export class Accounts {
       const destinationBalance =
          event.type === 'withdraw'
             ? undefined
-            : (this.balances.get(event.destination) ?? 0) + event.amount
+            : (this.accountBalances.get(event.destination) ?? 0) + event.amount
       if (
          destinationBalance !== undefined &&
          !Number.isSafeInteger(destinationBalance)
@@ -61,11 +64,11 @@ export class Accounts {
       const result: { origin?: Account; destination?: Account } = {}
       if (event.type !== 'deposit' && originBalance !== undefined) {
          const balance = originBalance - event.amount
-         this.balances.set(event.origin, balance)
+         this.accountBalances.set(event.origin, balance)
          result.origin = { id: event.origin, balance }
       }
       if (event.type !== 'withdraw' && destinationBalance !== undefined) {
-         this.balances.set(event.destination, destinationBalance)
+         this.accountBalances.set(event.destination, destinationBalance)
          result.destination = {
             id: event.destination,
             balance: destinationBalance,

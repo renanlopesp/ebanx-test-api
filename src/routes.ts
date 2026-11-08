@@ -1,11 +1,11 @@
 import type { FastifyInstance } from 'fastify'
-import { AccountError, Accounts, type AccountEvent } from './accounts.ts'
+import { AccountError, AccountService, type AccountEvent } from './accounts.ts'
 
 function isAccountId(value: unknown): value is string {
    return typeof value === 'string' && value.trim().length > 0
 }
 
-function parseEvent(body: unknown): AccountEvent {
+function parseAccountEvent(body: unknown): AccountEvent {
    if (typeof body !== 'object' || body === null || Array.isArray(body)) {
       throw new AccountError('Event must be an object', 400)
    }
@@ -40,7 +40,7 @@ function parseEvent(body: unknown): AccountEvent {
 }
 
 export async function accountRoutes(app: FastifyInstance) {
-   const accounts = new Accounts()
+   const accountService = new AccountService()
 
    app.setErrorHandler((error, request, reply) => {
       if (error instanceof AccountError) {
@@ -52,22 +52,24 @@ export async function accountRoutes(app: FastifyInstance) {
    })
 
    app.post('/reset', async (_, reply) => {
-      accounts.reset()
+      accountService.reset()
       return reply.type('text/plain').code(200).send('OK')
    })
 
    app.get<{ Querystring: { account_id?: unknown } }>(
       '/balance',
       async (request) => {
-         const id = request.query.account_id
-         if (!isAccountId(id))
+         const accountId = request.query.account_id
+         if (!isAccountId(accountId))
             throw new AccountError('Account ID must be a non-empty string', 400)
-         return accounts.balance(id)
+         return accountService.getBalance(accountId)
       }
    )
 
    app.post<{ Body: unknown }>('/event', async (request, reply) => {
-      const result = accounts.execute(parseEvent(request.body))
+      const result = accountService.processEvent(
+         parseAccountEvent(request.body)
+      )
       return reply.code(201).send(result)
    })
 }
