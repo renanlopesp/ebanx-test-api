@@ -237,6 +237,69 @@ test('balance overflow is rejected before any account changes', async (t) => {
    assert.equal((await balance('300')).body, String(Number.MAX_SAFE_INTEGER))
 })
 
+test('reset accepts an empty JSON body and clears existing accounts', async (t) => {
+   const { app, event, balance } = setup(t)
+   for (const contentType of [
+      'application/json',
+      'application/json; charset=utf-8',
+   ]) {
+      await event({ type: 'deposit', destination: '100', amount: 10 })
+      const response = await app.inject({
+         method: 'POST',
+         url: '/reset',
+         headers: { 'content-type': contentType },
+         payload: '',
+      })
+      assert.equal(response.statusCode, 200)
+      assert.equal(response.body, 'OK')
+      assert.match(response.headers['content-type'] ?? '', /text\/plain/)
+      const missing = await balance('100')
+      assert.equal(missing.statusCode, 404)
+      assert.equal(missing.body, '0')
+   }
+})
+
+test('reset still accepts valid JSON bodies', async (t) => {
+   const { app, event, balance } = setup(t)
+   await event({ type: 'deposit', destination: '100', amount: 10 })
+   const response = await app.inject({
+      method: 'POST',
+      url: '/reset',
+      headers: { 'content-type': 'application/json' },
+      payload: '{}',
+   })
+   assert.equal(response.statusCode, 200)
+   assert.equal(response.body, 'OK')
+   assert.equal((await balance('100')).statusCode, 404)
+})
+
+test('malformed JSON on reset does not clear accounts', async (t) => {
+   const { app, event, balance } = setup(t)
+   await event({ type: 'deposit', destination: '100', amount: 10 })
+   const response = await app.inject({
+      method: 'POST',
+      url: '/reset',
+      headers: { 'content-type': 'application/json' },
+      payload: '{',
+   })
+   assert.equal(response.statusCode, 400)
+   assert.equal((await balance('100')).body, '10')
+})
+
+test('empty JSON on event is still rejected without changing balances', async (t) => {
+   const { app, event, balance } = setup(t)
+   await event({ type: 'deposit', destination: '100', amount: 10 })
+   const response = await app.inject({
+      method: 'POST',
+      url: '/event',
+      headers: { 'content-type': 'application/json' },
+      payload: '',
+   })
+   assert.equal(response.statusCode, 400)
+   assert.equal(response.json().code, 'FST_ERR_CTP_EMPTY_JSON_BODY')
+   assert.equal((await balance('100')).body, '10')
+})
+
 test('malformed JSON returns 400', async (t) => {
    const { app } = setup(t)
    const response = await app.inject({

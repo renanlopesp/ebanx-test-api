@@ -51,9 +51,24 @@ export async function accountRoutes(app: FastifyInstance) {
       reply.send(error)
    })
 
-   app.post('/reset', async (_, reply) => {
-      accountService.reset()
-      return reply.type('text/plain').code(200).send('OK')
+   app.register(async (resetRoutes) => {
+      const parseJson = resetRoutes.getDefaultJsonParser('error', 'error')
+      resetRoutes.removeContentTypeParser('application/json')
+      resetRoutes.addContentTypeParser(
+         'application/json',
+         { parseAs: 'string' },
+         (request, body, done) => {
+            // Some clients send a JSON content type even when reset has no body.
+            const json = body.toString()
+            if (json === '') return done(null, null)
+            parseJson(request, json, done)
+         }
+      )
+
+      resetRoutes.post('/reset', async (_, reply) => {
+         accountService.reset()
+         return reply.type('text/plain').code(200).send('OK')
+      })
    })
 
    app.get<{ Querystring: { account_id?: unknown } }>(
