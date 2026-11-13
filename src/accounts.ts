@@ -5,6 +5,16 @@ export type AccountEvent =
    | { type: 'withdraw'; origin: string; amount: number }
    | { type: 'transfer'; origin: string; destination: string; amount: number }
 
+type EventResult = {
+   origin?: Account
+   destination?: Account
+}
+
+type ProcessedEvent = {
+   fingerprint: string
+   result: EventResult
+}
+
 export class AccountError extends Error {
    readonly statusCode: 400 | 404 | 409
 
@@ -14,11 +24,24 @@ export class AccountError extends Error {
    }
 }
 
+function getEventFingerprint(e: AccountEvent): string {
+   switch (e.type) {
+      case 'deposit':
+         return JSON.stringify([e.type, e.destination, e.amount])
+      case 'withdraw':
+         return JSON.stringify([e.type, e.origin, e.amount])
+      case 'transfer':
+         return JSON.stringify([e.type, e.origin, e.destination, e.amount])
+   }
+}
+
 export class AccountService {
    private readonly accountBalances = new Map<string, number>()
+   private readonly processedEvents = new Map<string, ProcessedEvent>()
 
    reset() {
       this.accountBalances.clear()
+      this.processedEvents.clear()
    }
 
    getBalance(accountId: string): number {
@@ -28,7 +51,34 @@ export class AccountService {
       return balance
    }
 
-   processEvent(event: AccountEvent): {
+   processEvent(event: AccountEvent, idempotencyKey?: string): EventResult {
+      if (idempotencyKey === undefined) {
+         return this.applyEvent(event)
+      }
+
+      const fingerprint = getEventFingerprint(event)
+      const previousEvent = this.processedEvents.get(idempotencyKey)
+
+      if (previousEvent) {
+         if (previousEvent.fingerprint !== fingerprint) {
+            throw new AccountError(
+               'Indenpotencu key already use for a different event',
+               409
+            )
+         }
+         return structuredClone(previousEvent.result)
+      }
+
+      const result = this.applyEvent(event)
+      this.processedEvents.set(idempotencyKey, {
+         fingerprint,
+         result: structuredClone(result),
+      })
+
+      return result
+   }
+
+   private applyEvent(event: AccountEvent): {
       origin?: Account
       destination?: Account
    } {

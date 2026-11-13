@@ -82,9 +82,23 @@ export async function accountRoutes(app: FastifyInstance) {
    )
 
    app.post<{ Body: unknown }>('/event', async (request, reply) => {
-      const result = accountService.processEvent(
-         parseAccountEvent(request.body)
-      )
+      const idempotencyKey = request.headers['idempotency-key']
+
+      if (
+         idempotencyKey !== undefined &&
+         (typeof idempotencyKey !== 'string' ||
+            idempotencyKey.trim().length === 0 ||
+            idempotencyKey.length > 200)
+      ) {
+         throw new AccountError('Invalid idempotency key', 400)
+      }
+
+      if (idempotencyKey !== undefined) {
+         reply.header('Idempotency-Key', idempotencyKey)
+      }
+
+      const event = parseAccountEvent(request.body)
+      const result = accountService.processEvent(event, idempotencyKey)
       return reply.code(201).send(result)
    })
 }
